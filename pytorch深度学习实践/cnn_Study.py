@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*- 
 # @Time : 2021/6/1 14:37 
 # @Author : Lee 
-# @File : cnn_test.py
+# @File : cnn_Study.py
 import torch
 from torchvision import transforms
 from torchvision import datasets
@@ -9,8 +9,11 @@ from torch.utils.data import DataLoader
 import torch.nn.functional as F
 import torch.optim as optim
 import matplotlib.pyplot as plt
-
+from matplotlib import font_manager as fm, rcParams
 import os
+
+plt.rcParams['font.sans-serif'] = ['SimHei']  # 显示中文标签
+plt.rcParams['axes.unicode_minus'] = False
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -55,7 +58,7 @@ test_loader = DataLoader(test_dataset, shuffle=False, batch_size=batch_size)
 
 """
 卷积神经网络运作流程：
-①前向传播：卷积--池化--激活--全连接  ②反向传播
+①前向传播：卷积--池化--激活--全连接（分类）  ②反向传播
 1.Conv2d:二维卷积
 2.ReLu:对于输入的负值，输出全为0，对于正值，原样输出。
 """
@@ -86,12 +89,49 @@ model = Net()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 
+"""
+1.nn.CrossEntropyLoss()函数计算交叉熵损失;
+  注意，使用nn.CrossEntropyLoss()时，不需要现将输出经过softmax层，否则计算的损失会有误，即直接将网络输出用来计算损失即可.
+2.model.parameters()是获取model网络的参数，构建好神经网络后，网络的参数都保存在parameters()函数当中。
+3.lr是学习率
+4.momentum
+5.SGD 随机梯度下降
+"""
 # construct loss and optimizer
 criterion = torch.nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.5)
 
-
 # training cycle forward, backward, update
+
+"""
+1.enumerate()
+①如果对一个列表，既要遍历索引又要遍历元素时
+list1 = ["这", "是", "一个", "测试"]
+for index, item in enumerate(list1):
+    print index, item
+>>>
+0 这
+1 是
+2 一个
+3 测试
+②enumerate可以接收第二个参数，用于指定索引起始值，如：
+list1 = ["这", "是", "一个", "测试"]
+for index, item in enumerate(list1, 1):
+    print index, item
+>>>
+1 这
+2 是
+3 一个
+4 测试
+
+
+2.optimizer.zero_grad()
+由于pytorch的动态计算图，当我们使用loss.backward()和optimizer.step()进行梯度下降更新参数的时候，梯度并不会自动清零。并且这两个操作是独立操作。
+进行backward之前需要清零梯度。
+
+3.optimizer.step():
+  只有用了optimizer.step()，模型参数才会更新
+"""
 
 
 def train(epoch):
@@ -99,17 +139,31 @@ def train(epoch):
     for batch_idx, data in enumerate(train_loader, 0):
         inputs, target = data
         inputs, target = inputs.to(device), target.to(device)
-        optimizer.zero_grad()
+        optimizer.zero_grad()  # 降梯度归零
 
         outputs = model(inputs)
-        loss = criterion(outputs, target)
-        loss.backward()
-        optimizer.step()
+        loss = criterion(outputs, target)  # 计算损失函数
+        loss.backward()  # 反向传播计算得到每个参数的梯度值
+        optimizer.step()  # 通过梯度下降执行一步参数更新（optimizer.step()）。一旦梯度被如backward()之类的函数计算好后，我们就可以调用这个函数。
 
-        running_loss += loss.item()
+        running_loss += loss.item()  # 计算一个epoch的损失，因为累加了loss。
         if batch_idx % 300 == 299:
             print('[%d, %5d] loss: %.3f' % (epoch + 1, batch_idx + 1, running_loss / 300))
             running_loss = 0.0
+
+
+"""
+1.torch.no_grad():
+  不需要计算梯度，因为是测试，只需要输入数据用模型预测。训练时需要反向计算梯度，然后更新参数、模型，
+
+2.torch.max():
+  这个函数返回的是两个值，第一个值是具体的value（我们用下划线_表示），第二个值是value所在的index（也就是predicted）。
+  
+3.为什么这里选择用下划线?
+  这是因为我们不关心最大值是什么，而关心最大值对应的index是什么，所以选用下划线代表不需要用到的变量。当然用字母也行。
+  
+4.dim=1表示输出所在行的最大值，若改写成dim=0则输出所在列的最大值。
+"""
 
 
 def test():
@@ -121,9 +175,9 @@ def test():
             images, labels = images.to(device), labels.to(device)
             outputs = model(images)
             _, predicted = torch.max(outputs.data, dim=1)
-            total += labels.size(0)
+            total += labels.size(0)  # total为测试的个数，correct为测试正确的个数；
             correct += (predicted == labels).sum().item()
-    print('accuracy on test set: %.3f %% ' % (100 * correct / total))
+    print('在测试集上的正确率: %.3f %% ' % (100 * correct / total))
     return correct / total
 
 
@@ -138,6 +192,6 @@ if __name__ == '__main__':
         acc_list.append(acc)
 
     plt.plot(epoch_list, acc_list)
-    plt.ylabel('accuracy')
+    plt.ylabel('正确率')
     plt.xlabel('epoch')
     plt.show()

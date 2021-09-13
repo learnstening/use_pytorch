@@ -80,7 +80,7 @@ def test():
             _, predicted = torch.max(outputs.data, dim=1)  # dim = 1 列是第0个维度，行是第1个维度
             total += labels.size(0)
             correct += (predicted == labels).sum().item()  # 张量之间的比较运算
-    print('accuracy on test set: %d %% ' % (100 * correct / total))
+    print('测试集上的准确率: %d %% ' % (100 * correct / total))
 
 
 if __name__ == '__main__':
